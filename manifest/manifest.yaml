@@ -282,7 +282,7 @@ metadata:
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: manager-role
+  name: inventory-controller-role
 subjects:
 - kind: ServiceAccount
   name: inventory-controller-manager
@@ -350,7 +350,8 @@ spec:
         - --health-probe-bind-address=:8081
         command:
         - /manager
-        image: controller:latest
+        image: docker.io/my-registry/inventory:main
+        imagePullPolicy: IfNotPresent
         livenessProbe:
           httpGet:
             path: /healthz
