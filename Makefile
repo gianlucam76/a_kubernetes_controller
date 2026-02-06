@@ -217,7 +217,7 @@ deploy-inventory: $(KUSTOMIZE)
 	$(KUSTOMIZE) build config/default | $(ENVSUBST) | $(KUBECTL) apply -f-
 
 	@echo "Waiting for k8s-inventory to be available..."
-	$(KUBECTL) wait --for=condition=Available deployment/inventory-controller-controller-manager -n inventory-controller-system --timeout=$(TIMEOUT)
+	$(KUBECTL) wait --for=condition=Available deployment/inventory-controller-manager -n inventory-controller-system --timeout=$(TIMEOUT)
 
 set-manifest-image:
 	$(info Updating kustomize image patch file for manager resource)
