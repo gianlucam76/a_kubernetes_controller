@@ -6,7 +6,7 @@
   "workspaceFolder": "${localWorkspaceFolder}",
   "workspaceMount": "source=${localWorkspaceFolder},target=${localWorkspaceFolder},type=bind",
   "mounts": ["source=dotfiles,target=/dotfiles,type=volume"],
-  "runArgs": ["--add-host=host.docker.internal:host-gateway"],
+  "runArgs": ["--privileged", "--network=host"],
   "features": {
     "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {
       "moby": false
