@@ -6,7 +6,7 @@ namespace: inventory-controller-system
 # "wordpress" becomes "alices-wordpress".
 # Note that it should also match with the prefix (text before '-') of the namespace
 # field above.
-namePrefix: inventory-controller-
+namePrefix: inventory-
 
 # Labels to add to all resources and selectors.
 #labels:
@@ -15,7 +15,7 @@ namePrefix: inventory-controller-
 #    someName: someValue
 
 resources:
-#- ../crd
+- ../crd
 - ../rbac
 - ../manager
 # [WEBHOOK] To enable webhook, uncomment all the sections with [WEBHOOK] prefix including the one in

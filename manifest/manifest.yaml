@@ -7,13 +7,80 @@ metadata:
     control-plane: controller-manager
   name: inventory-controller-system
 ---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.20.0
+  name: inventories.config.my.domain
+spec:
+  group: config.my.domain
+  names:
+    kind: Inventory
+    listKind: InventoryList
+    plural: inventories
+    shortNames:
+    - inv
+    singular: inventory
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: Inventory is the Schema for the inventories API
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: spec defines the desired state of Inventory
+            properties:
+              annotationKey:
+                description: |-
+                  By default inventory controller looks for annotation "owned-by" to
+                  decide who owns it. DefaultAnnotation if defined, overrides that.
+                maxLength: 50
+                minLength: 5
+                type: string
+            type: object
+          status:
+            description: status defines the observed state of Inventory
+            properties:
+              failureMessage:
+                description: |-
+                  FailureMessage reports any error the controller hit
+                  *optional
+                type: string
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+---
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   labels:
     app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/name: inventory-controller
-  name: inventory-controller-controller-manager
+  name: inventory-controller-manager
   namespace: inventory-controller-system
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -22,7 +89,7 @@ metadata:
   labels:
     app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/name: inventory-controller
-  name: inventory-controller-leader-election-role
+  name: inventory-leader-election-role
   namespace: inventory-controller-system
 rules:
 - apiGroups:
@@ -60,24 +127,110 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  labels:
-    app.kubernetes.io/managed-by: kustomize
-    app.kubernetes.io/name: inventory-controller
-  name: inventory-controller-manager-role
+  name: inventory-controller-role
 rules:
 - apiGroups:
-  - ""
+  - config.my.domain
   resources:
-  - pods
+  - inventories
   verbs:
+  - create
+  - delete
   - get
   - list
+  - patch
+  - update
   - watch
+- apiGroups:
+  - config.my.domain
+  resources:
+  - inventories/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - config.my.domain
+  resources:
+  - inventories/status
+  verbs:
+  - get
+  - patch
+  - update
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: inventory-controller-metrics-auth-role
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: inventory-controller
+  name: inventory-inventory-admin-role
+rules:
+- apiGroups:
+  - config.my.domain
+  resources:
+  - inventories
+  verbs:
+  - '*'
+- apiGroups:
+  - config.my.domain
+  resources:
+  - inventories/status
+  verbs:
+  - get
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: inventory-controller
+  name: inventory-inventory-editor-role
+rules:
+- apiGroups:
+  - config.my.domain
+  resources:
+  - inventories
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - config.my.domain
+  resources:
+  - inventories/status
+  verbs:
+  - get
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: inventory-controller
+  name: inventory-inventory-viewer-role
+rules:
+- apiGroups:
+  - config.my.domain
+  resources:
+  - inventories
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - config.my.domain
+  resources:
+  - inventories/status
+  verbs:
+  - get
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: inventory-metrics-auth-role
 rules:
 - apiGroups:
   - authentication.k8s.io
@@ -95,7 +248,7 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: inventory-controller-metrics-reader
+  name: inventory-metrics-reader
 rules:
 - nonResourceURLs:
   - /metrics
@@ -108,15 +261,15 @@ metadata:
   labels:
     app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/name: inventory-controller
-  name: inventory-controller-leader-election-rolebinding
+  name: inventory-leader-election-rolebinding
   namespace: inventory-controller-system
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
-  name: inventory-controller-leader-election-role
+  name: inventory-leader-election-role
 subjects:
 - kind: ServiceAccount
-  name: inventory-controller-controller-manager
+  name: inventory-controller-manager
   namespace: inventory-controller-system
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -125,27 +278,27 @@ metadata:
   labels:
     app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/name: inventory-controller
-  name: inventory-controller-manager-rolebinding
+  name: inventory-manager-rolebinding
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: inventory-controller-manager-role
+  name: manager-role
 subjects:
 - kind: ServiceAccount
-  name: inventory-controller-controller-manager
+  name: inventory-controller-manager
   namespace: inventory-controller-system
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: inventory-controller-metrics-auth-rolebinding
+  name: inventory-metrics-auth-rolebinding
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: inventory-controller-metrics-auth-role
+  name: inventory-metrics-auth-role
 subjects:
 - kind: ServiceAccount
-  name: inventory-controller-controller-manager
+  name: inventory-controller-manager
   namespace: inventory-controller-system
 ---
 apiVersion: v1
@@ -155,7 +308,7 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/name: inventory-controller
     control-plane: controller-manager
-  name: inventory-controller-controller-manager-metrics-service
+  name: inventory-controller-manager-metrics-service
   namespace: inventory-controller-system
 spec:
   ports:
@@ -174,7 +327,7 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/name: inventory-controller
     control-plane: controller-manager
-  name: inventory-controller-controller-manager
+  name: inventory-controller-manager
   namespace: inventory-controller-system
 spec:
   replicas: 1
@@ -217,7 +370,7 @@ spec:
             cpu: 500m
             memory: 128Mi
           requests:
-            cpu: 10m
+            cpu: 500m
             memory: 64Mi
         securityContext:
           allowPrivilegeEscalation: false
@@ -230,6 +383,6 @@ spec:
         runAsNonRoot: true
         seccompProfile:
           type: RuntimeDefault
-      serviceAccountName: inventory-controller-controller-manager
+      serviceAccountName: inventory-controller-manager
       terminationGracePeriodSeconds: 10
       volumes: []
