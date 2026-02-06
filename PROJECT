@@ -8,4 +8,14 @@ layout:
 - go.kubebuilder.io/v4
 projectName: inventory-controller
 repo: my.domain/inventory
+resources:
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: my.domain
+  group: config
+  kind: Inventory
+  path: my.domain/inventory/api/v1alpha1
+  version: v1alpha1
 version: "3"
