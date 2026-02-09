@@ -274,6 +274,10 @@ docker-buildx: ## docker build for multiple arch and push to docker hub
 load-image: docker-build $(KIND)
 	$(KIND) load docker-image docker.io/$(CONTROLLER_IMG):$(TAG) --name $(CONTROL_CLUSTER_NAME)
 
+.PHONY: kind-kubeconfig
+kind-kubeconfig: $(KIND)
+	$(KIND) export kubeconfig --name $(CONTROL_CLUSTER_NAME)
+
 ##@ Deployment
 
 ifndef ignore-not-found
