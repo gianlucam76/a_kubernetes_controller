@@ -130,6 +130,26 @@ metadata:
   name: inventory-controller-role
 rules:
 - apiGroups:
+  - ""
+  resources:
+  - configmaps
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
   - config.my.domain
   resources:
   - inventories
@@ -344,14 +364,9 @@ spec:
         control-plane: controller-manager
     spec:
       containers:
-      - args:
-        - --metrics-bind-address=:8443
-        - --leader-elect
-        - --health-probe-bind-address=:8081
-        command:
+      - command:
         - /manager
         image: docker.io/my-registry/inventory:main
-        imagePullPolicy: IfNotPresent
         livenessProbe:
           httpGet:
             path: /healthz

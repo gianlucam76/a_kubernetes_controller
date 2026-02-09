@@ -40,6 +40,15 @@ patches:
 - path: manager_metrics_patch.yaml
   target:
     kind: Deployment
+- path: manager_auth_proxy_patch.yaml
+  target:
+    kind: Deployment
+- path: manager_image_patch.yaml
+  target:
+    kind: Deployment
+- path: manager_pull_policy.yaml
+  target:
+    kind: Deployment
 
 # Uncomment the patches line if you enable Metrics and CertManager
 # [METRICS-WITH-CERTS] To enable metrics protected with certManager, uncomment the following line.

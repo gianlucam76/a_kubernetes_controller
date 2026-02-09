@@ -2,10 +2,10 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: controller
-  namespace: projectsveltos
+  namespace: inventory-controller-system
 spec:
   template:
     spec:
       containers:
-      - name: controller
+      - name: manager
         imagePullPolicy: 

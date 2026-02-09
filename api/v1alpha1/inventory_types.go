@@ -21,6 +21,10 @@ import (
 )
 
 const (
+	InventoryFinalizer = "my.domain/inventory"
+)
+
+const (
 	// This is the annotation used by default by the Inventory controller
 	// to decide who owns a pod
 	DefaultAnnotation = "owned-by"

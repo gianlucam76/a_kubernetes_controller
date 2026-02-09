@@ -181,6 +181,7 @@ func main() {
 	if err := (&controller.InventoryReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
+		Logger: setupLog.WithName("inventory-logger"),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Inventory")
 		os.Exit(1)
