@@ -25,11 +25,13 @@ import (
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -50,7 +52,6 @@ type InventoryReconciler struct {
 
 // +kubebuilder:rbac:groups=config.my.domain,resources=inventories,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=config.my.domain,resources=inventories/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=config.my.domain,resources=inventories/finalizers,verbs=update
 // +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update;patch;delete
 
@@ -141,37 +142,36 @@ func (r *InventoryReconciler) reconcileNormal(ctx context.Context,
 	// TODO: move this logic to fuinction. add ownerReference
 
 	// create/update configMap
-	configMapName := inventory.Name
 	configMap := &corev1.ConfigMap{}
-	err = r.Get(ctx, types.NamespacedName{Namespace: inventory.Namespace, Name: configMapName}, configMap)
+	err = r.Get(ctx, types.NamespacedName{Namespace: inventory.Namespace, Name: inventory.Name}, configMap)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
-			configMap.Namespace = inventory.Namespace
-			configMap.Name = configMapName
-			configMap.Data = map[string]string{}
-			for owner := range podsOwner {
-				configMap.Data[owner] = strings.Join(podsOwner[owner], ",")
-			}
+			configMap = getConfigMap(inventory, podsOwner)
 			return ctrl.Result{}, r.Create(ctx, configMap)
 		}
 		return ctrl.Result{}, err
 	}
 
-	configMap.Data = map[string]string{}
-	for owner := range podsOwner {
-		configMap.Data[owner] = strings.Join(podsOwner[owner], ",")
-	}
-	return ctrl.Result{}, r.Update(ctx, configMap)
+	configMap = getConfigMap(inventory, podsOwner)
+	_ = r.Update(ctx, configMap)
+
+	failureMessage := "This is an error"
+	inventory.Status.FailureMessage = &failureMessage
+	return ctrl.Result{}, r.Status().Update(ctx, inventory)
 }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *InventoryReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	// TODO: react to pod and configMap changes with predicates
+	// TODO: react to configMap changes with predicates
 	_, err := ctrl.NewControllerManagedBy(mgr).
 		For(&configv1alpha1.Inventory{},
 			builder.WithPredicates(
 				InventoryPredicate{Logger: r.Logger.WithName("inventoryPredicate")}),
 		).
+		WithOptions(controller.Options{
+			MaxConcurrentReconciles: 10,
+			ReconciliationTimeout:   time.Duration(20 * time.Second),
+		}).
 		Watches(&corev1.Pod{},
 			handler.EnqueueRequestsFromMapFunc(r.requeueInventoryForPods),
 			builder.WithPredicates(
@@ -191,4 +191,29 @@ func (r *InventoryReconciler) SetupWithManager(mgr ctrl.Manager) error {
 func (r *InventoryReconciler) addFinalizer(ctx context.Context, inventory *configv1alpha1.Inventory) error {
 	controllerutil.AddFinalizer(inventory, configv1alpha1.InventoryFinalizer)
 	return r.Update(ctx, inventory)
+}
+
+func getConfigMap(inventory *configv1alpha1.Inventory,
+	podsOwner map[string][]string) *corev1.ConfigMap {
+
+	configMapName := inventory.Name
+	configMap := &corev1.ConfigMap{}
+	configMap.Namespace = inventory.Namespace
+	configMap.Name = configMapName
+	configMap.Data = map[string]string{}
+
+	configMap.OwnerReferences = []metav1.OwnerReference{
+		{
+			APIVersion: configv1alpha1.GroupVersion.String(),
+			Kind:       configv1alpha1.InventoryKind,
+			Name:       inventory.Name,
+			UID:        inventory.UID,
+		},
+	}
+
+	for owner := range podsOwner {
+		configMap.Data[owner] = strings.Join(podsOwner[owner], ",")
+	}
+
+	return configMap
 }

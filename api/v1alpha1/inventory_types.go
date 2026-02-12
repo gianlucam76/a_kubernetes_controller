@@ -22,6 +22,8 @@ import (
 
 const (
 	InventoryFinalizer = "my.domain/inventory"
+
+	InventoryKind = "Inventory"
 )
 
 const (
@@ -40,11 +42,19 @@ type InventorySpec struct {
 	AnnotationKey string `json:"annotationKey,omitempty"`
 }
 
+type UserData struct {
+	Username string `json:"username,omitempty"`
+
+	Pods []string `json:"pods,omitempty"`
+}
+
 // InventoryStatus defines the observed state of Inventory.
 type InventoryStatus struct {
 	// FailureMessage reports any error the controller hit
 	// *optional
 	FailureMessage *string `json:"failureMessage,omitempty"`
+
+	Data []UserData `json:"data,omitempty"`
 }
 
 // +kubebuilder:object:root=true
