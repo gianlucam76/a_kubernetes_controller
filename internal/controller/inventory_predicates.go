@@ -4,7 +4,9 @@ import (
 	"reflect"
 
 	"github.com/go-logr/logr"
+	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	configv1alpha1 "my.domain/inventory/api/v1alpha1"
 )
@@ -46,4 +48,34 @@ func (p InventoryPredicate) Delete(e event.DeleteEvent) bool {
 func (p InventoryPredicate) Generic(e event.GenericEvent) bool {
 	// Ignore generic
 	return false
+}
+
+func PodPredicates(logger logr.Logger) predicate.Funcs {
+	return predicate.Funcs{
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			oldPod := e.ObjectOld.(*corev1.Pod)
+			newPod := e.ObjectNew.(*corev1.Pod)
+
+			if oldPod == nil {
+				return true
+			}
+
+			if !reflect.DeepEqual(oldPod.Annotations, newPod.Annotations) {
+				logger.V(1).Info("pod annotation changed. reconcile")
+				return true
+			}
+
+			return false
+		},
+		CreateFunc: func(e event.CreateEvent) bool {
+			pod := e.Object.(*corev1.Pod)
+			return pod.Annotations != nil
+		},
+		DeleteFunc: func(e event.DeleteEvent) bool {
+			return true
+		},
+		GenericFunc: func(e event.GenericEvent) bool {
+			return false
+		},
+	}
 }

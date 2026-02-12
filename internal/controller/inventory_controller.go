@@ -31,6 +31,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -42,6 +43,9 @@ type InventoryReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
 	Logger logr.Logger
+
+	// key: namespace, value: list names
+	inventories map[string][]string
 }
 
 // +kubebuilder:rbac:groups=config.my.domain,resources=inventories,verbs=get;list;watch;create;update;patch;delete
@@ -80,6 +84,8 @@ func (r *InventoryReconciler) reconcileDelete(ctx context.Context,
 	inventory *configv1alpha1.Inventory, logger logr.Logger) (ctrl.Result, error) {
 	// cleanup
 
+	// remove instance from inventories
+
 	// remove finalizer
 
 	return ctrl.Result{}, nil
@@ -89,13 +95,19 @@ func (r *InventoryReconciler) reconcileNormal(ctx context.Context,
 	inventory *configv1alpha1.Inventory, logger logr.Logger) (ctrl.Result, error) {
 	// TODO: reports errors
 
-	// add finalzier
+	// add finalizier
 	if !controllerutil.ContainsFinalizer(inventory, configv1alpha1.InventoryFinalizer) {
 		if err := r.addFinalizer(ctx, inventory); err != nil {
 			logger.V(1).Error(err, "failed to add finalizer")
 			return reconcile.Result{}, err
 		}
 	}
+
+	_, ok := r.inventories[inventory.Namespace]
+	if !ok {
+		r.inventories[inventory.Namespace] = make([]string, 0)
+	}
+	r.inventories[inventory.Namespace] = append(r.inventories[inventory.Namespace], inventory.Name)
 
 	listOptions := []client.ListOption{
 		client.InNamespace(inventory.Namespace),
@@ -155,13 +167,25 @@ func (r *InventoryReconciler) reconcileNormal(ctx context.Context,
 // SetupWithManager sets up the controller with the Manager.
 func (r *InventoryReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// TODO: react to pod and configMap changes with predicates
-	return ctrl.NewControllerManagedBy(mgr).
+	_, err := ctrl.NewControllerManagedBy(mgr).
 		For(&configv1alpha1.Inventory{},
 			builder.WithPredicates(
 				InventoryPredicate{Logger: r.Logger.WithName("inventoryPredicate")}),
 		).
+		Watches(&corev1.Pod{},
+			handler.EnqueueRequestsFromMapFunc(r.requeueInventoryForPods),
+			builder.WithPredicates(
+				PodPredicates(mgr.GetLogger().WithValues("predicate", "podpredicates")),
+			),
+		).
 		Named("inventory").
-		Complete(r)
+		Build(r)
+	if err != nil {
+		return err
+	}
+
+	r.inventories = make(map[string][]string)
+	return nil
 }
 
 func (r *InventoryReconciler) addFinalizer(ctx context.Context, inventory *configv1alpha1.Inventory) error {
